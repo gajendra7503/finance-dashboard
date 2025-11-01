@@ -73,3 +73,6 @@ export default defineConfig([
   },
 ])
 ```
+used appwrite for backend 
+username - gajendra.mishra@bajajcapital.com
+password - Shubh@8802
