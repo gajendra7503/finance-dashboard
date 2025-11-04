@@ -4,17 +4,23 @@ import { addTransaction, type Transaction } from "../../services/financeService"
 
 interface Props {
   onTransactionAdded: (transaction: Transaction) => void;
+  onClose?: () => void; // optional callback for closing modal
+  initialData?: Transaction; // optional for editing
 }
 
-export default function TransactionForm({ onTransactionAdded }: Props) {
+export default function TransactionForm({ onTransactionAdded, onClose, initialData }: Props) {
   const { user } = useAuth();
+
+  // Pre-fill form fields; for new transaction, default date is today
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   const [formData, setFormData] = useState({
-    type: "income",
-    amount: "",
-    category: "",
-    date: "",
-    note: "",
+    type: initialData?.type || "income",
+    amount: initialData?.amount?.toString() || "",
+    category: initialData?.category || "",
+    date: initialData?.date || today,
+    note: initialData?.note || "",
   });
+
   const [loading, setLoading] = useState(false);
 
   const incomeSources = ["Salary", "Business", "Investments", "Freelance", "Other Income"];
@@ -39,7 +45,7 @@ export default function TransactionForm({ onTransactionAdded }: Props) {
         category: formData.category,
         date: formData.date,
         note: formData.note || undefined,
-        id: undefined
+        id: initialData?.id
       });
 
       const transaction: Transaction = {
@@ -53,7 +59,8 @@ export default function TransactionForm({ onTransactionAdded }: Props) {
       };
 
       onTransactionAdded(transaction);
-      setFormData({ type: "income", amount: "", category: "", date: "", note: "" });
+      setFormData({ type: "income", amount: "", category: "", date: today, note: "" });
+      onClose?.(); // close modal if editing
     } catch (error) {
       console.error(error);
     } finally {
@@ -64,69 +71,107 @@ export default function TransactionForm({ onTransactionAdded }: Props) {
   const categoryOptions = formData.type === "income" ? incomeSources : expenseCategories;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-2 p-4 border rounded-md">
-      <select
-        name="type"
-        value={formData.type}
-        onChange={handleChange}
-        className="border p-2 rounded w-full"
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white p-6 rounded-md shadow-md w-full max-w-md space-y-4 relative"
       >
-        <option value="income">Income</option>
-        <option value="expense">Expense</option>
-      </select>
+        <h2 className="text-xl font-bold mb-2">{initialData ? "Edit Transaction" : "Add Transaction"}</h2>
 
-      <input
-        type="number"
-        name="amount"
-        placeholder="Amount"
-        value={formData.amount}
-        onChange={handleChange}
-        required
-        className="border p-2 rounded w-full"
-      />
+        <div className="flex flex-col">
+          <label htmlFor="type" className="mb-1 font-medium">Type</label>
+          <select
+            name="type"
+            id="type"
+            value={formData.type}
+            onChange={handleChange}
+            className="border p-2 rounded w-full"
+          >
+            <option value="income">Income</option>
+            <option value="expense">Expense</option>
+          </select>
+        </div>
 
-      <select
-        name="category"
-        value={formData.category}
-        onChange={handleChange}
-        required
-        className="border p-2 rounded w-full"
-      >
-        <option value="" disabled>
-          Select {formData.type === "income" ? "Income Source" : "Expense Category"}
-        </option>
-        {categoryOptions.map((cat) => (
-          <option key={cat} value={cat}>
-            {cat}
-          </option>
-        ))}
-      </select>
+        <div className="flex flex-col">
+          <label htmlFor="amount" className="mb-1 font-medium">Amount (₹)</label>
+          <input
+            type="number"
+            name="amount"
+            id="amount"
+            placeholder="Enter transaction amount"
+            value={formData.amount}
+            onChange={handleChange}
+            required
+            className="border p-2 rounded w-full"
+          />
+        </div>
 
-      <input
-        type="date"
-        name="date"
-        value={formData.date}
-        onChange={handleChange}
-        required
-        className="border p-2 rounded w-full"
-      />
+        <div className="flex flex-col">
+          <label htmlFor="category" className="mb-1 font-medium">Category</label>
+          <select
+            name="category"
+            id="category"
+            value={formData.category}
+            onChange={handleChange}
+            required
+            className="border p-2 rounded w-full"
+          >
+            <option value="" disabled>
+              Select {formData.type === "income" ? "Income Source" : "Expense Category"}
+            </option>
+            {categoryOptions.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      <input
-        type="text"
-        name="note"
-        placeholder="Note (optional)"
-        value={formData.note}
-        onChange={handleChange}
-        className="border p-2 rounded w-full"
-      />
+        <div className="flex flex-col">
+          <label htmlFor="date" className="mb-1 font-medium">Date</label>
+          <input
+            type="date"
+            name="date"
+            id="date"
+            value={formData.date}
+            onChange={handleChange}
+            required
+            className="border p-2 rounded w-full"
+          />
+        </div>
 
-      <button
-        type="submit"
-        className="bg-blue-600 text-white py-2 px-4 rounded w-full"
-        disabled={loading}
-      >
-        {loading ? "Adding..." : "Add Transaction"}
-      </button>
-    </form>
+        <div className="flex flex-col">
+          <label htmlFor="note" className="mb-1 font-medium">Note</label>
+          <input
+            type="text"
+            name="note"
+            id="note"
+            placeholder="Optional note"
+            value={formData.note}
+            onChange={handleChange}
+            className="border p-2 rounded w-full"
+          />
+        </div>
+
+        <div className="flex justify-between items-center">
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="bg-gray-300 text-gray-700 py-2 px-4 rounded hover:bg-gray-400"
+            >
+              Cancel
+            </button>
+          )}
+          <button
+            type="submit"
+            className="bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
+            disabled={loading}
+          >
+            {loading ? "Saving..." : initialData ? "Update Transaction" : "Add Transaction"}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }

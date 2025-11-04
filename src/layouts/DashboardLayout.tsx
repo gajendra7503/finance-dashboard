@@ -10,6 +10,7 @@ export default function DashboardLayout() {
     { label: "🏠 Dashboard", path: "" },
     { label: "🎯 Goals", path: "goals" },
     { label: "💳 Transactions", path: "transactions" },
+    { label: "📊 Budget", path: "budget" },
     { label: "👤 Profile", path: "profile" },
   ];
 

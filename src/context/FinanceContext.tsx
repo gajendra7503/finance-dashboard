@@ -222,3 +222,115 @@ export const useFinance = () => {
   if (!ctx) throw new Error("useFinance must be inside FinanceProvider");
   return ctx;
 };
+
+
+// NEW Feature code for phase 2 can go here
+// import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+// import toast from "react-hot-toast";
+// import { useAuth } from "./AuthContext";
+// import {
+//   addTransaction as addTransactionService,
+//   getTransactions,
+//   createBudget as createBudgetService,
+//   getBudgets,
+//   getGoals as getGoalsService,
+//   addGoal as addGoalService,
+//   updateGoal as updateGoalService,
+//   type Transaction,
+//   type Budget,
+//   type Goal as DBGoal,
+// } from "../services/financeService";
+
+// interface FinanceContextType {
+//   transactions: Transaction[];
+//   budgets: Budget[];
+//   goals: DBGoal[];
+//   addTransaction: (t: Omit<Transaction, "$id">) => Promise<void>;
+//   addBudget: (b: Budget) => Promise<void>;
+//   deleteTransaction: (id: string) => Promise<void>;
+// }
+
+// const FinanceContext = createContext<FinanceContextType | null>(null);
+
+// export const FinanceProvider = ({ children }: { children: ReactNode }) => {
+//   const { user } = useAuth();
+//   const [transactions, setTransactions] = useState<Transaction[]>([]);
+//   const [budgets, setBudgets] = useState<Budget[]>([]);
+//   const [goals, setGoals] = useState<DBGoal[]>([]);
+
+//   // Load initial data
+//   useEffect(() => {
+//     if (!user?.$id) return;
+//     (async () => {
+//       try {
+//         const [txs, buds, gls] = await Promise.all([
+//           getTransactions(user.$id),
+//           getBudgets(user.$id),
+//           getGoalsService(user.$id),
+//         ]);
+//         setTransactions(txs);
+//         setBudgets(buds);
+//         setGoals(gls);
+//       } catch (e) {
+//         console.error("Failed to load finance data", e);
+//       }
+//     })();
+//   }, [user]);
+
+//   // ➕ Add Transaction
+//   const addTransaction = async (t: Omit<Transaction, "$id">) => {
+//     try {
+//       await addTransactionService(t);
+//       setTransactions((prev) => [t as Transaction, ...prev]);
+//       toast.success("Transaction added successfully!");
+//     } catch (err) {
+//       console.error(err);
+//       toast.error("Failed to add transaction");
+//     }
+//   };
+
+//   // ➕ Add / Merge Budget
+//   const addBudget = async (b: Budget) => {
+//     try {
+//       await createBudgetService(b);
+//       setBudgets((prev) => [b, ...prev]);
+//       toast.success("Budget saved successfully!");
+//     } catch (err) {
+//       console.error(err);
+//       toast.error("Failed to save budget");
+//     }
+//   };
+
+//   // 🗑️ Delete Transaction
+//   const deleteTransaction = async (id: string) => {
+//     try {
+//       // You can wire delete service if needed
+//       setTransactions((prev) => prev.filter((tx) => tx.$id !== id));
+//       toast.success("Transaction deleted");
+//     } catch (err) {
+//       toast.error("Failed to delete transaction");
+//     }
+//   };
+
+//   return (
+//     <FinanceContext.Provider
+//       value={{
+//         transactions,
+//         budgets,
+//         goals,
+//         addTransaction,
+//         addBudget,
+//         deleteTransaction,
+//       }}
+//     >
+//       {children}
+//     </FinanceContext.Provider>
+//   );
+// };
+
+// export const useFinance = () => {
+//   const ctx = useContext(FinanceContext);
+//   if (!ctx) throw new Error("useFinance must be used inside FinanceProvider");
+//   return ctx;
+// };
+
