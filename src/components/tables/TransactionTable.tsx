@@ -14,12 +14,15 @@ export default function TransactionTable({ transactions: initialTransactions = [
   const [error, setError] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [category, setCategory] = useState("");
+  const [monthFilter, setMonthFilter] = useState(() => new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const limit = 5;
   const debouncedType = useDebounce(typeFilter, 400);
   const debouncedCategory = useDebounce(category, 400);
+  // const debouncedDate = useDebounce(dateFilter, 400);
+
 
   const incomeCategories  = ["Salary", "Business", "Investments", "Freelance", "Other Income"];
   const expenseCategories  = ["Food", "Travel", "Bills", "Shopping", "Health", "Education", "Entertainment", "Other Expenses"];
@@ -30,9 +33,13 @@ export default function TransactionTable({ transactions: initialTransactions = [
     setError("");
 
     try {
+    const startDate = monthFilter ? `${monthFilter}-01` : "";
+    const endDate = monthFilter ? `${monthFilter}-31` : "";
       const { transactions, total } = await getTransactions(user.$id, {
         search: debouncedType,
         category: debouncedCategory,
+        startDate,
+        endDate,
         page,
         limit,
       });
@@ -75,7 +82,7 @@ export default function TransactionTable({ transactions: initialTransactions = [
   };
 
   const handleUpdate = async () => {
-    if (!editingTransaction || !user?.$id) return;
+    if (!editingTransaction || !user?.$id || !editingTransaction.$id) return;
     try {
       await updateTransaction(editingTransaction.$id, editingTransaction);
       setEditingTransaction(null);
@@ -100,6 +107,15 @@ export default function TransactionTable({ transactions: initialTransactions = [
     <div className="space-y-4">
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
+          <input
+    type="month"
+    value={monthFilter}
+    onChange={(e) => {
+      setPage(1);
+      setMonthFilter(e.target.value);
+    }}
+    className="border px-3 py-2 rounded-md"
+  />
         <select
           value={typeFilter}
           onChange={(e) => {
@@ -156,7 +172,7 @@ export default function TransactionTable({ transactions: initialTransactions = [
                 <td className="border p-2">{t.note || "-"}</td>
                 <td className="border p-2 space-x-2">
                   <button className="text-sm bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600" onClick={() => handleEditClick(t)}>Edit</button>
-                  <button className="text-sm bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600" onClick={() => handleDelete(t.$id)}>Delete</button>
+                  <button className="text-sm bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600" onClick={() => { if (t.$id) handleDelete(t.$id); }}>Delete</button>
                 </td>
               </tr>
             ))}
@@ -166,74 +182,87 @@ export default function TransactionTable({ transactions: initialTransactions = [
 
       {/* Edit Form Modal */}
       {editingTransaction && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center">
-          <div className="bg-white p-6 rounded-md w-96">
-            <h3 className="text-lg font-semibold mb-4">Edit Transaction</h3>
-            <select
-              name="type"
-              value={editingTransaction.type}
-              onChange={handleEditChange}
-              className="border p-2 rounded w-full mb-2"
-            >
-              <option value="income">Income</option>
-              <option value="expense">Expense</option>
-            </select>
+  <div className="fixed inset-0 z-50 flex justify-center items-center">
+    {/* Blurred background overlay */}
+    <div
+      className="absolute inset-0 backdrop-blur-md bg-black/20"
+      onClick={() => setEditingTransaction(null)} // click outside to close
+    ></div>
 
-            <input
-              type="number"
-              name="amount"
-              value={editingTransaction.amount}
-              onChange={handleEditChange}
-              className="border p-2 rounded w-full mb-2"
-            />
+    {/* Edit form */}
+    <div className="relative bg-white p-6 rounded-md w-96 z-10 space-y-3">
+      <h3 className="text-lg font-semibold mb-2">Edit Transaction</h3>
 
-            <select
-              name="category"
-              value={editingTransaction.category}
-              onChange={handleEditChange}
-              className="border p-2 rounded w-full mb-2"
-            >
-              {(editingTransaction.type === "income" ? incomeCategories : expenseCategories).map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
+      <div className="flex flex-col">
+        <label className="mb-1 font-medium">Type</label>
+        <select
+          name="type"
+          value={editingTransaction.type}
+          onChange={handleEditChange}
+          className="border p-2 rounded w-full"
+        >
+          <option value="income">Income</option>
+          <option value="expense">Expense</option>
+        </select>
+      </div>
 
-            {/* <input
-              type="date"
-              name="date"
-              value={editingTransaction.date}
-              onChange={handleEditChange}
-              className="border p-2 rounded w-full mb-2"
-            /> */}
+      <div className="flex flex-col">
+        <label className="mb-1 font-medium">Amount (₹)</label>
+        <input
+          type="number"
+          name="amount"
+          value={editingTransaction.amount}
+          onChange={handleEditChange}
+          className="border p-2 rounded w-full"
+        />
+      </div>
 
-            <input
-              type="text"
-              name="note"
-              value={editingTransaction.note || ""}
-              onChange={handleEditChange}
-              placeholder="Note"
-              className="border p-2 rounded w-full mb-4"
-            />
+      <div className="flex flex-col">
+        <label className="mb-1 font-medium">Category</label>
+        <select
+          name="category"
+          value={editingTransaction.category}
+          onChange={handleEditChange}
+          className="border p-2 rounded w-full"
+        >
+          {(editingTransaction.type === "income" ? incomeCategories : expenseCategories).map((cat) => (
+            <option key={cat} value={cat}>
+              {cat}
+            </option>
+          ))}
+        </select>
+      </div>
 
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setEditingTransaction(null)}
-                className="px-4 py-2 bg-gray-200 rounded"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleUpdate}
-                className="px-4 py-2 bg-blue-600 text-white rounded"
-              >
-                Update
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="flex flex-col">
+        <label className="mb-1 font-medium">Note</label>
+        <input
+          type="text"
+          name="note"
+          value={editingTransaction.note || ""}
+          onChange={handleEditChange}
+          placeholder="Optional note"
+          className="border p-2 rounded w-full"
+        />
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <button
+          onClick={() => setEditingTransaction(null)}
+          className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleUpdate}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Update
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
 
       {/* Pagination */}
       <div className="flex justify-between items-center mt-4">

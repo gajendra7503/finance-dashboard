@@ -8,6 +8,7 @@ import Login from "../pages/Auth/Login";
 import Signup from "../pages/Auth/Signup";
 import ProtectedRoute from "./ProtectedRoute";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import BudgetPage from "../pages/Budget/BudgetPage";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ export default function AppRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="goals" element={<Goals />} />
         <Route path="transactions" element={<Transactions />} />
+        <Route path="budget" element={<BudgetPage />} />
         <Route path="profile" element={<Profile />} />
       </Route>
 
