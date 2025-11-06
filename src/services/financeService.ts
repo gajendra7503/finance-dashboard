@@ -94,7 +94,7 @@ export const getTransactions = async (
     startDate = "",
     endDate = "",
     page = 1,
-    limit = 10,
+    limit = 100,
   }: {
     search?: string;
     category?: string;
@@ -431,6 +431,36 @@ export async function getMonthlySpend(userId: string, month: string) {
   } catch (error) {
     console.error("Error calculating monthly spend:", error);
     throw new Error("Failed to calculate monthly spend");
+  }
+}
+
+// ✅ Calculate total income, total budget, and unassigned remainder for the month
+export async function getIncomeSummary(userId: string, month: string) {
+  try {
+    const startDate = `${month}-01`;
+    const endDate = `${month}-31`;
+
+    // Get all income transactions in the selected month
+    const res = await databases.listDocuments(DB_ID, COLLECTION_TRANSACTIONS, [
+      Query.equal("userId", userId),
+      Query.equal("type", "income"),
+      Query.between("date", startDate, endDate),
+    ]);
+
+    // Total income for this month
+    const totalIncome = res.documents.reduce((sum, tx: any) => sum + tx.amount, 0);
+
+    // Fetch all budgets for the same month
+    const budgets = await getBudgets(userId, month);
+    const totalBudgeted = budgets.reduce((sum, b) => sum + (b.budgetAmount || 0), 0);
+
+    // Compute remaining (unallocated income)
+    const remaining = Math.max(totalIncome - totalBudgeted, 0);
+
+    return { totalIncome, totalBudgeted, remaining };
+  } catch (error) {
+    console.error("Error fetching income summary:", error);
+    return { totalIncome: 0, totalBudgeted: 0, remaining: 0 };
   }
 }
 

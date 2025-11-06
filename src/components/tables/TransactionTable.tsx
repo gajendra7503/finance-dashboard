@@ -22,8 +22,6 @@ export default function TransactionTable({ transactions: initialTransactions = [
   const debouncedType = useDebounce(typeFilter, 400);
   const debouncedCategory = useDebounce(category, 400);
   // const debouncedDate = useDebounce(dateFilter, 400);
-
-
   const incomeCategories  = ["Salary", "Business", "Investments", "Freelance", "Other Income"];
   const expenseCategories  = ["Food", "Travel", "Bills", "Shopping", "Health", "Education", "Entertainment", "Other Expenses"];
 
@@ -43,6 +41,7 @@ export default function TransactionTable({ transactions: initialTransactions = [
         page,
         limit,
       });
+      console.log("Fetched transactions:", transactions);
       setTransactions(transactions);
       setTotal(total);
     } catch (err: any) {
@@ -82,7 +81,7 @@ export default function TransactionTable({ transactions: initialTransactions = [
   };
 
   const handleUpdate = async () => {
-    if (!editingTransaction || !user?.$id || !editingTransaction.$id) return;
+    if (!editingTransaction || !user?.$id) return;
     try {
       await updateTransaction(editingTransaction.$id, editingTransaction);
       setEditingTransaction(null);
@@ -172,7 +171,7 @@ export default function TransactionTable({ transactions: initialTransactions = [
                 <td className="border p-2">{t.note || "-"}</td>
                 <td className="border p-2 space-x-2">
                   <button className="text-sm bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600" onClick={() => handleEditClick(t)}>Edit</button>
-                  <button className="text-sm bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600" onClick={() => { if (t.$id) handleDelete(t.$id); }}>Delete</button>
+                  <button className="text-sm bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600" onClick={() => handleDelete(t.$id)}>Delete</button>
                 </td>
               </tr>
             ))}
