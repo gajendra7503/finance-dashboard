@@ -5,6 +5,7 @@ import {
   updateBudget,
   deleteBudget,
   getMonthlySpend,
+  getIncomeSummary,
   type Budget
 } from "../../services/financeService";
 import { useAuth } from "../../context/AuthContext";
@@ -50,28 +51,70 @@ const BudgetPage = () => {
   ];
 
   // 🔹 Load Budgets + Actual Spend
-  const loadBudgets = async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      const [budgetsData, spendData] = await Promise.all([
-        getBudgets(user.$id!, month),
-        getMonthlySpend(user.$id!, month)
-      ]);
+  // const loadBudgets = async () => {
+  //   if (!user) return;
+  //   setLoading(true);
+  //   try {
+  //     const [budgetsData, spendData] = await Promise.all([
+  //       getBudgets(user.$id!, month),
+  //       getMonthlySpend(user.$id!, month)
+  //     ]);
 
-      const updated = budgetsData.map((b) => ({
+  //     const updated = budgetsData.map((b) => ({
+  //       ...b,
+  //       spentAmount: b.spentAmount ?? spendData[b.category] ?? 0
+  //     }));
+
+  //     setBudgets(updated);
+  //   } catch (err) {
+  //     console.error(err);
+  //     toast.error("Failed to load budgets");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+const loadBudgets = async () => {
+  if (!user) return;
+  setLoading(true);
+  try {
+    // Fetch budgets, spending data, and income summary simultaneously
+    const [budgetsData, spendData, incomeSummary] = await Promise.all([
+      getBudgets(user.$id!, month),
+      getMonthlySpend(user.$id!, month),
+      getIncomeSummary(user.$id!, month),
+    ]);
+
+    // Map each budget with updated spend data
+    const updated = budgetsData
+      .filter((b) => b.category !== "Income") // skip income-based entries
+      .map((b) => ({
         ...b,
-        spentAmount: b.spentAmount ?? spendData[b.category] ?? 0
+        spentAmount: b.spentAmount ?? spendData[b.category] ?? 0,
       }));
 
-      setBudgets(updated);
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to load budgets");
-    } finally {
-      setLoading(false);
+    // ✅ Add "Other" only if remaining income exists
+    if (incomeSummary.remaining > 0) {
+      updated.push({
+        $id: "virtual-other",
+        userId: user.$id!,
+        category: "Other (Unassigned Income)",
+        month,
+        budgetAmount: incomeSummary.remaining,
+        spentAmount: 0,
+        notes: "Unassigned income not allocated to categories",
+        alertThreshold: 100,
+      });
     }
-  };
+
+    setBudgets(updated);
+  } catch (err) {
+    console.error("Error loading budgets:", err);
+    toast.error("Failed to load budgets");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   useEffect(() => {
     loadBudgets();

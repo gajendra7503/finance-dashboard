@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getTransactions, getGoals, type Transaction, type Goal } from "../../services/financeService";
 import { useAuth } from "../../context/AuthContext";
-import { PieChart, Pie, Cell, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer
+} from "recharts";
 
 // ================== Dashboard ==================
 export default function Dashboard() {
@@ -13,10 +14,13 @@ export default function Dashboard() {
     queryKey: ["transactions", userId],
     queryFn: async () => {
       const res = await getTransactions(userId);
+       console.log("Dashboard Fetched transactions:", res.transactions);
       return Array.isArray(res) ? res : res.transactions;
     },
     enabled: !!userId,
   });
+  
+
 
   const { data: goals, isLoading: loadingGoals } = useQuery<Goal[]>({
     queryKey: ["goals", userId],
@@ -26,6 +30,21 @@ export default function Dashboard() {
 
   const isLoading = loadingTransactions || loadingGoals;
 
+  // -------------------- Month Filter --------------------
+  const [selectedMonth, setSelectedMonth] = useState("all");
+
+  // Generate months dynamically from transactions
+  const availableMonths = useMemo(() => {
+    if (!transactions) return [];
+    const months = new Set(
+      transactions.map((t) => {
+        const date = new Date(t.date);
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      })
+    );
+    return Array.from(months).sort().reverse();
+  }, [transactions]);
+
   // -------------------- Derived Calculations --------------------
   const {
     monthlyIncome,
@@ -34,44 +53,101 @@ export default function Dashboard() {
     balanceOverTime,
     transactionsByCategory,
     upcomingPayments,
+    totalIncomeAllTime,
   } = useMemo(() => {
-    if (!transactions) return { monthlyIncome: 0, monthlyExpense: 0, netBalance: 0, balanceOverTime: [], transactionsByCategory: [], upcomingPayments: [] };
+    if (!transactions)
+      return {
+        monthlyIncome: 0,
+        monthlyExpense: 0,
+        netBalance: 0,
+        balanceOverTime: [],
+        transactionsByCategory: [],
+        upcomingPayments: [],
+        totalIncomeAllTime: 0,
+      };
 
-    const now = new Date();
-    const month = now.getMonth();
-    const year = now.getFullYear();
+    // Filter by month if selected
+    let filteredTx = transactions;
+ if (selectedMonth !== "all") {
+  const [year, month] = selectedMonth.split("-").map(Number);
+  filteredTx = transactions.filter((t) => {
+    const d = new Date(t.date);
 
-    const currentMonthTx = transactions.filter((t) => {
-      const txDate = new Date(t.date);
-      return txDate.getMonth() === month && txDate.getFullYear() === year;
-    });
+    // Normalize both to local timezone (Appwrite stores UTC by default)
+    const localYear = d.getFullYear();
+    const localMonth = d.getMonth() + 1;
 
-    const monthlyIncome = currentMonthTx.filter((t) => t.type === "income").reduce((sum, t) => sum + t.amount, 0);
-    const monthlyExpense = currentMonthTx.filter((t) => t.type === "expense").reduce((sum, t) => sum + t.amount, 0);
+    return localYear === year && localMonth === month;
+  });
+}
+
+
+    // --- Monthly Income ---
+    const monthlyIncome = filteredTx
+      .filter((t) => t.type?.toLowerCase() === "income")
+      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+    // --- Monthly Expense ---
+    const monthlyExpense = filteredTx
+      .filter((t) => t.type?.toLowerCase() === "expense")
+      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
     const netBalance = monthlyIncome - monthlyExpense;
 
-    const expensesByCategory = Object.entries(transactions.filter((t) => t.type === "expense").reduce((acc: Record<string, number>, t) => {
-      acc[t.category] = (acc[t.category] || 0) + t.amount;
-      return acc;
-    }, {})).map(([category, value]) => ({ name: category, value }));
+    // --- FIXED: All Time Income Calculation ---
+    const totalIncomeAllTime = transactions
+      .filter((t) => t.type?.toLowerCase() === "income")
+      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
-    const totalIncome = transactions.filter((t) => t.type === "income").reduce((sum, t) => sum + t.amount, 0);
-    const transactionsByCategory = [{ name: "Income", value: totalIncome }, ...expensesByCategory].filter((t) => t.value > 0);
+    // --- Expenses by Category ---
+    const expensesByCategory = Object.entries(
+      filteredTx
+        .filter((t) => t.type?.toLowerCase() === "expense")
+        .reduce((acc: Record<string, number>, t) => {
+          acc[t.category] = (acc[t.category] || 0) + (Number(t.amount) || 0);
+          return acc;
+        }, {})
+    ).map(([category, value]) => ({ name: category, value }));
 
-    const balanceOverTime = transactions.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).reduce((acc: { date: string; balance: number }[], t) => {
-      const last = acc.length ? acc[acc.length - 1].balance : 0;
-      const newBalance = t.type === "income" ? last + t.amount : last - t.amount;
-      acc.push({ date: t.date, balance: newBalance });
-      return acc;
-    }, []);
+    // --- Income for Pie Chart ---
+    const totalIncome = filteredTx
+      .filter((t) => t.type?.toLowerCase() === "income")
+      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
-    const upcomingPayments = transactions.filter((t) => t.type === "expense" && new Date(t.date) > new Date());
+    const transactionsByCategory = [
+      { name: "Income", value: totalIncome },
+      ...expensesByCategory,
+    ].filter((t) => t.value > 0);
 
-    return { monthlyIncome, monthlyExpense, netBalance, balanceOverTime, transactionsByCategory, upcomingPayments };
-  }, [transactions]);
+    // --- Balance Over Time ---
+    const balanceOverTime = filteredTx
+      .slice()
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .reduce((acc: { date: string; balance: number }[], t) => {
+        const last = acc.length ? acc[acc.length - 1].balance : 0;
+        const newBalance =
+          t.type?.toLowerCase() === "income" ? last + (Number(t.amount) || 0) : last - (Number(t.amount) || 0);
+        acc.push({ date: t.date, balance: newBalance });
+        return acc;
+      }, []);
+
+    // --- Upcoming Payments ---
+    const upcomingPayments = filteredTx.filter(
+      (t) => t.type?.toLowerCase() === "expense" && new Date(t.date) > new Date()
+    );
+
+    return {
+      monthlyIncome,
+      monthlyExpense,
+      netBalance,
+      balanceOverTime,
+      transactionsByCategory,
+      upcomingPayments,
+      totalIncomeAllTime,
+    };
+  }, [transactions, selectedMonth]);
 
   // -------------------- Accordion State --------------------
-  // Default to open
   const [showSummary, setShowSummary] = useState(true);
   const [showCharts, setShowCharts] = useState(true);
   const [showGoals, setShowGoals] = useState(true);
@@ -79,18 +155,44 @@ export default function Dashboard() {
 
   if (isLoading) return <DashboardSkeleton />;
 
+  // -------------------- UI --------------------
   return (
     <div className="p-6 space-y-6 min-h-screen bg-gray-50 text-gray-900">
-      <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
-      <h2 className="text-lg text-gray-500 mb-6">Welcome back, {user?.firstName || "User"} 👋</h2>
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
+          <h2 className="text-lg text-gray-500">
+            Welcome back, {user?.firstName || "User"} 👋
+          </h2>
+        </div>
+
+        {/* Month Filter */}
+        <select
+          className="border rounded-lg p-2 shadow-sm text-gray-700 bg-white"
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(e.target.value)}
+        >
+          <option value="all">All Months</option>
+          {availableMonths.map((m) => {
+            const [year, month] = m.split("-");
+            const monthName = new Date(Number(year), Number(month) - 1).toLocaleString("default", { month: "long" });
+            return (
+              <option key={m} value={m}>
+                {monthName} {year}
+              </option>
+            );
+          })}
+        </select>
+      </div>
 
       {/* ---------------- Summary Accordion ---------------- */}
       <AccordionSection title="Summary" isOpen={showSummary} setIsOpen={setShowSummary}>
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
-          <SummaryCard title="Total Income (This Month)" value={`₹${monthlyIncome.toLocaleString()}`} color="green" />
-          <SummaryCard title="Total Expense (This Month)" value={`₹${monthlyExpense.toLocaleString()}`} color="red" />
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-6">
+          <SummaryCard title={`Total Income (${selectedMonth === "all" ? "All Time" : "Selected Month"})`} value={`₹${monthlyIncome.toLocaleString()}`} color="green" />
+          <SummaryCard title="Total Expense" value={`₹${monthlyExpense.toLocaleString()}`} color="red" />
           <SummaryCard title="Net Balance" value={`₹${netBalance.toLocaleString()}`} color="blue" />
           <SummaryCard title="Active Goals" value={`${goals?.length ?? 0}`} color="purple" />
+          <SummaryCard title="Total Income (All Time)" value={`₹${totalIncomeAllTime.toLocaleString()}`} color="green" />
         </div>
       </AccordionSection>
 
@@ -107,64 +209,49 @@ export default function Dashboard() {
         <GoalProgressList goals={goals ?? []} />
       </AccordionSection>
 
-   {/* ---------------- Payments Accordion ---------------- */}
+      {/* ---------------- Payments Accordion ---------------- */}
       <AccordionSection title="Payments" isOpen={showPayments} setIsOpen={setShowPayments}>
-        {/* Payments Summary Cards */}
-        {upcomingPayments.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="bg-white p-4 rounded-xl shadow text-center">
-              <h4 className="text-gray-600 font-medium">Total Payments</h4>
-              <p className="text-2xl font-bold">₹{upcomingPayments.reduce((sum, p) => sum + p.amount, 0).toLocaleString()}</p>
-            </div>
-            <div className="bg-red-500 text-white p-4 rounded-xl shadow text-center">
-              <h4 className="font-medium">Overdue Payments</h4>
-              <p className="text-2xl font-bold">
-                ₹{upcomingPayments.filter((p) => new Date(p.date).getTime() < new Date().getTime())
-                  .reduce((sum, p) => sum + p.amount, 0)
-                  .toLocaleString()}
-              </p>
-            </div>
-            <div className="bg-red-100 text-red-700 p-4 rounded-xl shadow text-center">
-              <h4 className="font-medium">Due Soon (7 Days)</h4>
-              <p className="text-2xl font-bold">
-                ₹{upcomingPayments.filter((p) => {
-                  const diffDays = Math.ceil((new Date(p.date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                  return diffDays >= 0 && diffDays <= 7;
-                }).reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Payment List */}
         {upcomingPayments.length === 0 ? (
           <p className="text-gray-500">No upcoming payments.</p>
         ) : (
           <ul className="space-y-2">
-            {upcomingPayments.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map((payment) => {
-              const paymentDate = new Date(payment.date);
-              const today = new Date();
-              const diffDays = Math.ceil((paymentDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-              const isOverdue = diffDays < 0;
-              const isDueSoon = diffDays >= 0 && diffDays <= 7;
+            {upcomingPayments
+              .slice()
+              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+              .map((payment) => {
+                const paymentDate = new Date(payment.date);
+                const today = new Date();
+                const diffDays = Math.ceil(
+                  (paymentDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+                );
+                const isOverdue = diffDays < 0;
+                const isDueSoon = diffDays >= 0 && diffDays <= 7;
 
-              return (
-                <li
-                  key={payment.$id}
-                  className={`flex justify-between items-center p-2 border rounded
-                    ${isOverdue ? "bg-red-500 text-white border-red-700" :
-                    isDueSoon ? "bg-red-100 border-red-400" : "bg-white border-gray-200"}`}
-                >
-                  <span>{payment.category}</span>
-                  <span>
-                    ₹{payment.amount.toLocaleString()}
-                    {isOverdue && <span className="font-bold ml-2">❌ Overdue</span>}
-                    {isDueSoon && !isOverdue && <span className="text-red-600 font-semibold ml-2">⚠️ Due Soon</span>}
-                  </span>
-                  <span>{paymentDate.toLocaleDateString()}</span>
-                </li>
-              );
-            })}
+                return (
+                  <li
+                    key={payment.$id}
+                    className={`flex justify-between items-center p-2 border rounded
+                      ${isOverdue
+                        ? "bg-red-500 text-white border-red-700"
+                        : isDueSoon
+                        ? "bg-red-100 border-red-400"
+                        : "bg-white border-gray-200"
+                      }`}
+                  >
+                    <span>{payment.category}</span>
+                    <span>
+                      ₹{payment.amount.toLocaleString()}
+                      {isOverdue && <span className="font-bold ml-2">❌ Overdue</span>}
+                      {isDueSoon && !isOverdue && (
+                        <span className="text-red-600 font-semibold ml-2">
+                          ⚠️ Due Soon
+                        </span>
+                      )}
+                    </span>
+                    <span>{paymentDate.toLocaleDateString()}</span>
+                  </li>
+                );
+              })}
           </ul>
         )}
       </AccordionSection>
@@ -172,8 +259,7 @@ export default function Dashboard() {
   );
 }
 
-
-// -------------------- Accordion Component --------------------
+// -------------------- Reusable Components --------------------
 function AccordionSection({ title, isOpen, setIsOpen, children }: { title: string; isOpen: boolean; setIsOpen: (open: boolean) => void; children: React.ReactNode }) {
   return (
     <div className="bg-white rounded-xl shadow overflow-hidden">
@@ -185,7 +271,6 @@ function AccordionSection({ title, isOpen, setIsOpen, children }: { title: strin
   );
 }
 
-// -------------------- Summary Card --------------------
 function SummaryCard({ title, value, color }: { title: string; value: string; color: string }) {
   const colorClasses: Record<string, string> = {
     green: "bg-green-100 text-green-700",
@@ -201,10 +286,10 @@ function SummaryCard({ title, value, color }: { title: string; value: string; co
   );
 }
 
-// -------------------- Charts --------------------
 function SpendingPieChart({ data }: { data: { name: string; value: number }[] }) {
   const COLORS = ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948"];
-  if (data.length === 0) return <div className="bg-white p-6 rounded-xl shadow text-center text-gray-500">No expense data to display.</div>;
+  if (data.length === 0)
+    return <div className="bg-white p-6 rounded-xl shadow text-center text-gray-500">No expense data to display.</div>;
 
   return (
     <div className="bg-white p-4 rounded-xl shadow">
@@ -221,7 +306,8 @@ function SpendingPieChart({ data }: { data: { name: string; value: number }[] })
 }
 
 function BalanceLineChart({ data }: { data: { date: string; balance: number }[] }) {
-  if (data.length === 0) return <div className="bg-white p-6 rounded-xl shadow text-center text-gray-500">No balance trend data available.</div>;
+  if (data.length === 0)
+    return <div className="bg-white p-6 rounded-xl shadow text-center text-gray-500">No balance trend data available.</div>;
 
   return (
     <div className="bg-white p-4 rounded-xl shadow">
@@ -239,7 +325,6 @@ function BalanceLineChart({ data }: { data: { date: string; balance: number }[] 
   );
 }
 
-// -------------------- Goals --------------------
 function GoalProgressList({ goals }: { goals: Goal[] }) {
   if (goals.length === 0) return <p className="text-gray-500">No active goals yet.</p>;
 
@@ -253,7 +338,9 @@ function GoalProgressList({ goals }: { goals: Goal[] }) {
             <div className="w-full bg-gray-200 rounded-full h-3 mt-1">
               <div className="bg-green-500 h-3 rounded-full" style={{ width: `${progress}%` }} />
             </div>
-            <p className="text-sm text-gray-500 mt-1">₹{goal.savedAmount} / ₹{goal.targetAmount} ({progress.toFixed(1)}%)</p>
+            <p className="text-sm text-gray-500 mt-1">
+              ₹{goal.savedAmount} / ₹{goal.targetAmount} ({progress.toFixed(1)}%)
+            </p>
           </div>
         );
       })}
@@ -261,7 +348,6 @@ function GoalProgressList({ goals }: { goals: Goal[] }) {
   );
 }
 
-// -------------------- Skeleton --------------------
 function DashboardSkeleton() {
   return (
     <div className="p-6 animate-pulse space-y-6">
