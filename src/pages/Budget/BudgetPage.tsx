@@ -73,26 +73,77 @@ const BudgetPage = () => {
   //     setLoading(false);
   //   }
   // };
+
+
+// const loadBudgets = async () => {
+//   if (!user) return;
+//   setLoading(true);
+//   try {
+//     // Fetch budgets, spending data, and income summary simultaneously
+//     const [budgetsData, spendData, incomeSummary] = await Promise.all([
+//       getBudgets(user.$id!, month),
+//       getMonthlySpend(user.$id!, month),
+//       getIncomeSummary(user.$id!, month),
+//     ]);
+
+//     // Map each budget with updated spend data
+//     const updated = budgetsData
+//       .filter((b) => b.category !== "Income") // skip income-based entries
+//       .map((b) => ({
+//         ...b,
+//         spentAmount: b.spentAmount ?? spendData[b.category] ?? 0,
+//       }));
+
+//     // ✅ Add "Other" only if remaining income exists
+//     if (incomeSummary.remaining > 0) {
+//       updated.push({
+//         $id: "virtual-other",
+//         userId: user.$id!,
+//         category: "Other (Unassigned Income)",
+//         month,
+//         budgetAmount: incomeSummary.remaining,
+//         spentAmount: 0,
+//         notes: "Unassigned income not allocated to categories",
+//         alertThreshold: 100,
+//       });
+//     }
+
+//     setBudgets(updated);
+//   } catch (err) {
+//     console.error("Error loading budgets:", err);
+//     toast.error("Failed to load budgets");
+//   } finally {
+//     setLoading(false);
+//   }
+// };
+
 const loadBudgets = async () => {
   if (!user) return;
   setLoading(true);
+
   try {
-    // Fetch budgets, spending data, and income summary simultaneously
+    // Fetch budgets, spending data, and income summary in parallel
     const [budgetsData, spendData, incomeSummary] = await Promise.all([
       getBudgets(user.$id!, month),
       getMonthlySpend(user.$id!, month),
       getIncomeSummary(user.$id!, month),
     ]);
 
-    // Map each budget with updated spend data
-    const updated = budgetsData
-      .filter((b) => b.category !== "Income") // skip income-based entries
-      .map((b) => ({
-        ...b,
-        spentAmount: b.spentAmount ?? spendData[b.category] ?? 0,
-      }));
+    // Define all income-related categories you want to exclude from budget display
+    const incomeCategories = ["Salary", "Investments", "Other Income", "Business Income", "Bonus", "Rental Income"];
 
-    // ✅ Add "Other" only if remaining income exists
+    // Filter budgets: only non-income categories
+    const filteredBudgets = budgetsData.filter(
+      (b) => !incomeCategories.includes(b.category) && b.category !== "Income"
+    );
+
+    // Map spend data into each remaining category
+    const updated = filteredBudgets.map((b) => ({
+      ...b,
+      spentAmount: b.spentAmount ?? spendData[b.category] ?? 0,
+    }));
+
+    // ✅ Add virtual "Other (Unassigned Income)" only if remaining > 0
     if (incomeSummary.remaining > 0) {
       updated.push({
         $id: "virtual-other",
@@ -114,7 +165,6 @@ const loadBudgets = async () => {
     setLoading(false);
   }
 };
-
 
   useEffect(() => {
     loadBudgets();

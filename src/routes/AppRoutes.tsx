@@ -38,7 +38,7 @@ export default function AppRoutes() {
       </Route>
 
       {/* Fallback */}
-      {/* <Route path="*" element={<Login/>} /> */}
+       <Route path="*" element={<Login/>} />
     </Routes>
   
   </QueryClientProvider>
