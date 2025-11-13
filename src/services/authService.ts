@@ -298,6 +298,8 @@ export const logout = async () => {
   }
 };
 
+
+
 // ---------------- GET CURRENT USER ----------------
 export const getCurrentUser = async (): Promise<Profile | null> => {
   try {
@@ -322,3 +324,24 @@ export const getCurrentUser = async (): Promise<Profile | null> => {
     return null;
   }
 };
+
+export async function sendPasswordReset(email: string) {
+  try {
+    const redirectUrl = `${window.location.origin}/reset-password`; // after user clicks email link
+    await account.createRecovery(email, redirectUrl);
+    return true;
+  } catch (error) {
+    console.error("Password reset request failed:", error);
+    throw error;
+  }
+}
+
+export async function resetPassword(userId: string, secret: string, newPassword: string) {
+  try {
+    await account.updateRecovery(userId, secret, newPassword);
+    return true;
+  } catch (error) {
+    console.error("Password reset failed:", error);
+    throw error;
+  }
+}
