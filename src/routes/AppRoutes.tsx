@@ -6,6 +6,8 @@ import Transactions from "../pages/Transactions/Transactions";
 import Profile from "../pages/Profile/Profile";
 import Login from "../pages/Auth/Login";
 import Signup from "../pages/Auth/Signup";
+import ForgotPassword from "../pages/Auth/ForgotPassword";
+import ResetPassword from "../pages/Auth/ResetPassword";
 import ProtectedRoute from "./ProtectedRoute";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import BudgetPage from "../pages/Budget/BudgetPage";
@@ -20,6 +22,8 @@ export default function AppRoutes() {
       {/* Public */}
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* Protected */}
       <Route
@@ -38,7 +42,7 @@ export default function AppRoutes() {
       </Route>
 
       {/* Fallback */}
-      {/* <Route path="*" element={<Login/>} /> */}
+       <Route path="*" element={<Login/>} />
     </Routes>
   
   </QueryClientProvider>
